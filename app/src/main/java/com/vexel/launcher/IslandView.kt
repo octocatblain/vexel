@@ -507,7 +507,13 @@ class IslandView(context: Context) : FrameLayout(context) {
             const val PREV = 3
         }
 
-        private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE }
+        // Filled with a round stroke: the active-state counterpart to the outlined app glyphs.
+        private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.WHITE
+            style = Paint.Style.FILL_AND_STROKE
+            strokeJoin = Paint.Join.ROUND
+            strokeCap = Paint.Cap.ROUND
+        }
 
         private fun triangle(x1: Float, y1: Float, x2: Float, y2: Float, x3: Float, y3: Float) =
             Path().apply {
@@ -518,7 +524,8 @@ class IslandView(context: Context) : FrameLayout(context) {
             }
 
         override fun onDraw(canvas: Canvas) {
-            val s = minOf(width, height) * 0.5f
+            val s = minOf(width, height) * 0.46f
+            paint.strokeWidth = s * 0.3f
             val cx = width / 2f
             val cy = height / 2f
             when (kind) {

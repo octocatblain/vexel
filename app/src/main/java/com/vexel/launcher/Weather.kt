@@ -81,16 +81,16 @@ object Weather {
         }
     }
 
-    /** Text-style symbol (︎ keeps it monochrome) and a short description for a WMO weather code. */
+    /** Glyph name (see [Glyphs]) and a short description for a WMO weather code. */
     fun describe(code: Int): Pair<String, String> = when (code) {
-        0 -> "☀︎" to "Clear"
-        1, 2 -> "⛅︎" to "Partly cloudy"
-        3 -> "☁︎" to "Cloudy"
-        45, 48 -> "☁︎" to "Fog"
-        in 51..57 -> "☂︎" to "Drizzle"
-        in 61..67, in 80..82 -> "☂︎" to "Rain"
-        in 71..77, 85, 86 -> "❄︎" to "Snow"
-        in 95..99 -> "⚡︎" to "Thunderstorm"
-        else -> "☁︎" to "Weather"
+        0 -> "sun" to "Clear"
+        1, 2 -> "cloud" to "Partly cloudy"
+        3 -> "cloud" to "Cloudy"
+        45, 48 -> "fog" to "Fog"
+        in 51..57 -> "rain" to "Drizzle"
+        in 61..67, in 80..82 -> "rain" to "Rain"
+        in 71..77, 85, 86 -> "snow" to "Snow"
+        in 95..99 -> "storm" to "Thunderstorm"
+        else -> "cloud" to "Weather"
     }
 }

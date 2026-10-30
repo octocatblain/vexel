@@ -8,7 +8,9 @@ import android.content.pm.ResolveInfo
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.BlurMaskFilter
 import android.graphics.LinearGradient
+import android.graphics.PorterDuffColorFilter
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.PorterDuff
@@ -53,8 +55,8 @@ private data class AppEntry(
 class MainActivity : Activity() {
 
     companion object {
-        private const val COLS = 4
-        private const val ROWS = 6
+        private const val COLS = 5
+        private const val ROWS = 9
         private const val PER_PAGE = COLS * ROWS
         private const val MAX_FAVORITES = 5
         private const val MATCH = ViewGroup.LayoutParams.MATCH_PARENT
@@ -74,7 +76,6 @@ class MainActivity : Activity() {
     private lateinit var root: FrameLayout
     private lateinit var pager: ViewPager2
     private lateinit var pagerAdapter: PagerAdapter
-    private lateinit var search: EditText
     private lateinit var dots: LinearLayout
     private lateinit var island: IslandView
 
@@ -101,14 +102,13 @@ class MainActivity : Activity() {
 
     override fun onNewIntent(intent: Intent?) {
         super.onNewIntent(intent)
-        search.setText("")
         pager.setCurrentItem(0, true)
     }
 
     @Deprecated("Deprecated in Java")
     override fun onBackPressed() {
         // A launcher has nowhere to go back to.
-        if (search.text.isNotEmpty()) search.setText("") else pager.setCurrentItem(0, true)
+        pager.setCurrentItem(0, true)
     }
 
     override fun onDestroy() {
@@ -125,7 +125,8 @@ class MainActivity : Activity() {
 
     private fun buildUi() {
         root = FrameLayout(this)
-        root.setBackgroundColor(scrim(0f))
+        val backdrop = Backdrop(this)
+        root.addView(backdrop, FrameLayout.LayoutParams(MATCH, MATCH))
 
         homeContent = buildHome()
         pagerAdapter = PagerAdapter()
@@ -135,9 +136,7 @@ class MainActivity : Activity() {
             registerOnPageChangeCallback(object : ViewPager2.OnPageChangeCallback() {
                 override fun onPageScrolled(position: Int, offset: Float, px: Int) {
                     val p = (position + offset).coerceIn(0f, 1f)
-                    root.setBackgroundColor(scrim(p))
-                    search.alpha = p
-                    search.visibility = if (p > 0.02f) View.VISIBLE else View.INVISIBLE
+                    backdrop.progress = p
                 }
 
                 override fun onPageSelected(position: Int) {
@@ -147,26 +146,6 @@ class MainActivity : Activity() {
             })
         }
         root.addView(pager, FrameLayout.LayoutParams(MATCH, MATCH))
-
-        search = EditText(this).apply {
-            hint = "Search apps"
-            setHintTextColor(Color.argb(170, 255, 255, 255))
-            setTextColor(Color.WHITE)
-            setSingleLine()
-            background = glass(dp(26).toFloat())
-            setPadding(dp(20), 0, dp(20), 0)
-            visibility = View.INVISIBLE
-            alpha = 0f
-            addTextChangedListener(object : TextWatcher {
-                override fun afterTextChanged(s: Editable?) = filter(s?.toString().orEmpty())
-                override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
-                override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
-            })
-        }
-        root.addView(search, FrameLayout.LayoutParams(MATCH, dp(52)).apply {
-            marginStart = dp(16)
-            marginEnd = dp(16)
-        })
 
         dots = LinearLayout(this).apply { gravity = Gravity.CENTER }
         root.addView(dots, FrameLayout.LayoutParams(WRAP, WRAP, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL))
@@ -192,15 +171,12 @@ class MainActivity : Activity() {
 
     private fun applyInsets() {
         (island.layoutParams as FrameLayout.LayoutParams).topMargin = topInset + dp(6)
-        (search.layoutParams as FrameLayout.LayoutParams).topMargin = topInset + dp(64)
         (dots.layoutParams as FrameLayout.LayoutParams).bottomMargin = bottomInset + dp(14)
         (homeInfo.layoutParams as FrameLayout.LayoutParams).topMargin = topInset + dp(72)
-        (dock.layoutParams as FrameLayout.LayoutParams).bottomMargin = bottomInset + dp(44)
+        (dock.layoutParams as FrameLayout.LayoutParams).bottomMargin = bottomInset + dp(36)
         root.requestLayout()
         pagerAdapter.notifyDataSetChanged()
     }
-
-    private fun scrim(p: Float): Int = Color.argb((85 + 130 * p).toInt(), 0, 0, 0)
 
     private fun buildHome(): FrameLayout {
         val home = FrameLayout(this)
@@ -240,8 +216,8 @@ class MainActivity : Activity() {
         dock = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
-            background = glass(dp(36).toFloat())
-            setPadding(dp(10), dp(14), dp(10), dp(14))
+            background = glassDock(dp(26).toFloat())
+            setPadding(dp(8), dp(16), dp(8), dp(16))
         }
         home.addView(dock, FrameLayout.LayoutParams(MATCH, WRAP, Gravity.BOTTOM).apply {
             marginStart = dp(16)
@@ -258,7 +234,7 @@ class MainActivity : Activity() {
                 setImageDrawable(monoIcon(app))
                 setOnClickListener { startActivity(app.intent) }
                 setOnLongClickListener { showMenu(this, app); true }
-            }, LinearLayout.LayoutParams(dp(56), dp(56)))
+            }, LinearLayout.LayoutParams(dp(60), dp(60)))
             dock.addView(cell, LinearLayout.LayoutParams(0, WRAP, 1f))
         }
     }
@@ -309,7 +285,7 @@ class MainActivity : Activity() {
     private fun gridPage(page: Int): View {
         val col = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(12), topInset + dp(132), dp(12), bottomInset + dp(44))
+            setPadding(dp(8), topInset + dp(56), dp(8), bottomInset + dp(34))
         }
         for (r in 0 until ROWS) {
             val row = LinearLayout(this)
@@ -325,12 +301,12 @@ class MainActivity : Activity() {
     private fun appCell(app: AppEntry) = LinearLayout(this).apply {
         orientation = LinearLayout.VERTICAL
         gravity = Gravity.CENTER_HORIZONTAL
-        setPadding(0, dp(6), 0, 0)
+        setPadding(0, dp(2), 0, 0)
         addView(ImageView(context).apply { setImageDrawable(monoIcon(app)) }, LinearLayout.LayoutParams(dp(56), dp(56)))
         addView(TextView(context).apply {
             text = app.label
             setTextColor(Color.WHITE)
-            textSize = 12f
+            textSize = 11f
             maxLines = 1
             ellipsize = TextUtils.TruncateAt.END
             gravity = Gravity.CENTER
@@ -356,11 +332,7 @@ class MainActivity : Activity() {
             .sortedBy { it.label.lowercase() }
         favorites = resolveFavorites()
         refreshDock()
-        filter(search.text.toString())
-    }
-
-    private fun filter(q: String) {
-        shown = if (q.isBlank()) allApps else allApps.filter { it.label.contains(q, ignoreCase = true) }
+        shown = allApps
         pagerAdapter.notifyDataSetChanged()
         refreshDots()
     }
@@ -429,8 +401,11 @@ class MainActivity : Activity() {
     // ---- weather --------------------------------------------------------------------------
 
     private fun showWeather(r: Weather.Reading) {
-        val (symbol, text) = Weather.describe(r.code)
-        weatherChip.text = "$symbol  ${r.tempC}°  $text"
+        val (glyph, text) = Weather.describe(r.code)
+        val icon = BitmapDrawable(resources, Glyphs.tinted(glyph, dp(22), Color.WHITE))
+        weatherChip.setCompoundDrawablesRelativeWithIntrinsicBounds(icon, null, null, null)
+        weatherChip.compoundDrawablePadding = dp(8)
+        weatherChip.text = "${r.tempC}°  $text"
     }
 
     private fun requestWeatherPermissionOrRefresh() {
@@ -477,10 +452,9 @@ class MainActivity : Activity() {
     private fun monoIcon(app: AppEntry): BitmapDrawable = iconCache.getOrPut(app.packageName) {
         val size = dp(56)
         val s = size.toFloat()
-        val icon = app.info.loadIcon(packageManager)
         val out = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(out)
-        val radius = s * 0.3f
+        val radius = s * Design.TILE_RADIUS
         val bounds = RectF(0f, 0f, s, s)
 
         // Glass tile: smoky grey body, bright top sheen, soft light edge.
@@ -490,14 +464,21 @@ class MainActivity : Activity() {
         canvas.drawRect(bounds, Paint().apply {
             shader = LinearGradient(
                 0f, 0f, 0f, s,
-                intArrayOf(Color.argb(150, 120, 124, 134), Color.argb(130, 52, 54, 62)),
+                intArrayOf(Color.argb(252, 255, 255, 255), Color.argb(222, 222, 228, 244)),
                 null, Shader.TileMode.CLAMP
+            )
+        })
+        // Soft inner shade along the bottom edge gives the tile thickness.
+        canvas.drawRect(RectF(0f, s * 0.6f, s, s), Paint().apply {
+            shader = LinearGradient(
+                0f, s * 0.6f, 0f, s,
+                Color.argb(0, 150, 160, 190), Color.argb(70, 150, 160, 190), Shader.TileMode.CLAMP
             )
         })
         canvas.drawRect(RectF(0f, 0f, s, s * 0.5f), Paint().apply {
             shader = LinearGradient(
                 0f, 0f, 0f, s * 0.5f,
-                Color.argb(70, 255, 255, 255), Color.argb(0, 255, 255, 255), Shader.TileMode.CLAMP
+                Color.argb(130, 255, 255, 255), Color.argb(0, 255, 255, 255), Shader.TileMode.CLAMP
             )
         })
         canvas.restore()
@@ -508,67 +489,26 @@ class MainActivity : Activity() {
                 strokeWidth = 2f
                 shader = LinearGradient(
                     0f, 0f, 0f, s,
-                    Color.argb(150, 255, 255, 255), Color.argb(30, 255, 255, 255), Shader.TileMode.CLAMP
+                    Color.argb(255, 255, 255, 255), Color.argb(110, 255, 255, 255), Shader.TileMode.CLAMP
                 )
             }
         )
 
         // Glyph mask (opaque where the symbol is), then filled with a white-to-silver gradient.
-        val mask = (icon as? AdaptiveIconDrawable)?.foreground?.let { silhouette(it, size) }
-            ?: detailMask(icon, size)
+        val mask = Glyphs.mask(Glyphs.forApp(app.label, app.packageName), size)
         Canvas(mask).drawRect(0f, 0f, s, s, Paint().apply {
             shader = LinearGradient(
                 0f, 0f, 0f, s,
-                Color.argb(255, 255, 255, 255), Color.argb(255, 188, 190, 198), Shader.TileMode.CLAMP
+                Color.argb(245, 30, 34, 52), Color.argb(245, 88, 94, 118), Shader.TileMode.CLAMP
             )
             xfermode = PorterDuffXfermode(PorterDuff.Mode.SRC_IN)
         })
+        // Soft shadow under the symbol, then the symbol itself.
+        canvas.drawBitmap(mask, 0f, dp(1).toFloat(), Paint().apply {
+            maskFilter = BlurMaskFilter(dp(2).toFloat(), BlurMaskFilter.Blur.NORMAL)
+            colorFilter = PorterDuffColorFilter(Color.argb(90, 70, 80, 120), PorterDuff.Mode.SRC_IN)
+        })
         canvas.drawBitmap(mask, 0f, 0f, null)
         BitmapDrawable(resources, out)
-    }
-
-    /** Mask of the dark/minority detail of a non-adaptive icon. */
-    private fun detailMask(icon: Drawable, size: Int): Bitmap {
-        val src = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
-        icon.setBounds(0, 0, size, size)
-        icon.draw(Canvas(src))
-        val px = IntArray(size * size)
-        src.getPixels(px, 0, size, 0, 0, size, size)
-        val lum = IntArray(px.size) {
-            val p = px[it]
-            if (Color.alpha(p) < 128) 255
-            else (0.299f * Color.red(p) + 0.587f * Color.green(p) + 0.114f * Color.blue(p)).toInt()
-        }
-        // Split at the mean brightness; the smaller region is the symbol.
-        val mean = lum.average()
-        val invert = lum.count { it < mean } > lum.size / 2
-        for (i in px.indices) {
-            px[i] = if ((lum[i] < mean) != invert) Color.WHITE else Color.TRANSPARENT
-        }
-        src.setPixels(px, 0, size, 0, 0, size, size)
-        return src
-    }
-
-    /** Black silhouette of an adaptive icon's foreground, or null if it is mostly solid. */
-    private fun silhouette(fg: Drawable, size: Int): Bitmap? {
-        // Adaptive layers are 108dp with a 72dp visible area; draw at 1.5x so the visible part fills the tile.
-        val layer = (size * 1.5f).toInt()
-        val inset = (layer - size) / 2
-        val raw = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
-        fg.setBounds(-inset, -inset, layer - inset, layer - inset)
-        fg.draw(Canvas(raw))
-        val px = IntArray(size * size)
-        raw.getPixels(px, 0, size, 0, 0, size, size)
-        val opaque = px.count { Color.alpha(it) > 200 }
-        if (opaque == 0 || opaque > px.size * 0.5) return null
-        val out = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
-        val shrink = size * 0.14f
-        Canvas(out).drawBitmap(
-            raw, null, RectF(shrink, shrink, size - shrink, size - shrink),
-            Paint(Paint.FILTER_BITMAP_FLAG).apply {
-                colorFilter = android.graphics.PorterDuffColorFilter(Color.BLACK, android.graphics.PorterDuff.Mode.SRC_IN)
-            }
-        )
-        return out
     }
 }
