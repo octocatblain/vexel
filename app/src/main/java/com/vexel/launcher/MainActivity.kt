@@ -31,6 +31,7 @@ import android.text.Editable
 import android.text.TextUtils
 import android.text.TextWatcher
 import android.view.Gravity
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowInsets
@@ -44,6 +45,7 @@ import android.widget.TextClock
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
 import androidx.viewpager2.widget.ViewPager2
+import kotlin.math.abs
 
 private data class AppEntry(
     val label: String,
@@ -90,8 +92,15 @@ class MainActivity : Activity() {
         super.onCreate(savedInstanceState)
         window.setDecorFitsSystemWindows(false)
         buildUi()
-        IslandRepository.onChange = { island.setItems(islandItems(it)) }
+        IslandRepository.listen(islandListener)
+        try {
+            startForegroundService(Intent(this, LockService::class.java))
+        } catch (e: RuntimeException) {
+            // The lock screen service can't start right now; it will on the next launch.
+        }
     }
+
+    private val islandListener: (List<IslandItem>) -> Unit = { island.setItems(islandItems(it)) }
 
     override fun onResume() {
         super.onResume()
@@ -112,13 +121,50 @@ class MainActivity : Activity() {
     }
 
     override fun onDestroy() {
-        IslandRepository.onChange = null
+        IslandRepository.unlisten(islandListener)
         super.onDestroy()
     }
 
     override fun onRequestPermissionsResult(code: Int, permissions: Array<out String>, results: IntArray) {
         super.onRequestPermissionsResult(code, permissions, results)
         refreshWeather()
+    }
+
+    // ---- gestures -------------------------------------------------------------------------
+
+    /** Swipe up on home opens the apps, swipe down on home pulls the notification shade, swipe down on apps returns home. */
+    private var downX = 0f
+    private var downY = 0f
+
+    override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+        when (ev.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                downX = ev.x
+                downY = ev.y
+            }
+            MotionEvent.ACTION_UP -> onVerticalSwipe(ev.x - downX, ev.y - downY)
+        }
+        return super.dispatchTouchEvent(ev)
+    }
+
+    private fun onVerticalSwipe(dx: Float, dy: Float) {
+        if (abs(dy) < dp(80) || abs(dy) < abs(dx) * 1.5f) return
+        val onHome = pager.currentItem == 0
+        when {
+            dy < 0 && onHome -> pager.setCurrentItem(1, true)
+            dy > 0 && onHome -> expandNotifications()
+            dy > 0 -> pager.setCurrentItem(0, true)
+        }
+    }
+
+    private fun expandNotifications() {
+        try {
+            Class.forName("android.app.StatusBarManager")
+                .getMethod("expandNotificationsPanel")
+                .invoke(getSystemService("statusbar"))
+        } catch (e: ReflectiveOperationException) {
+            // The platform doesn't expose the shade to apps; the system's own pull-down still works.
+        }
     }
 
     // ---- UI construction ------------------------------------------------------------------
@@ -344,19 +390,8 @@ class MainActivity : Activity() {
     }
 
     private fun defaultFavorites(): List<String> {
-        val probes = listOf(
-            Intent(Intent.ACTION_DIAL),
-            Intent(Intent.ACTION_SENDTO, Uri.parse("smsto:")),
-            Intent(Intent.ACTION_VIEW, Uri.parse("https://example.com")),
-            Intent(MediaStore.INTENT_ACTION_STILL_IMAGE_CAMERA)
-        )
-        val picks = probes
-            .mapNotNull { packageManager.resolveActivity(it, PackageManager.MATCH_DEFAULT_ONLY)?.activityInfo?.packageName }
-            .filter { it != "android" }
-            .toMutableList()
-        picks += "com.android.vending"
-        picks += allApps.map { it.packageName }
-        return picks.distinct().filter { p -> allApps.any { it.packageName == p } }.take(MAX_FAVORITES)
+        val wanted = listOf("Phone", "Messages", "Spotify", "WhatsApp", "WA Business")
+        return wanted.mapNotNull { w -> allApps.firstOrNull { it.label.equals(w, ignoreCase = true) }?.packageName }
     }
 
     private fun saveFavorites(list: List<AppEntry>) {

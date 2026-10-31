@@ -43,7 +43,15 @@ data class IslandItem(
 object IslandRepository {
     var items: List<IslandItem> = emptyList()
         private set
-    var onChange: ((List<IslandItem>) -> Unit)? = null
+    private val listeners = LinkedHashSet<(List<IslandItem>) -> Unit>()
+
+    fun listen(l: (List<IslandItem>) -> Unit) {
+        listeners += l
+    }
+
+    fun unlisten(l: (List<IslandItem>) -> Unit) {
+        listeners -= l
+    }
 
     private val RIDE_PKGS = setOf("ee.mtakso.client", "com.ubercab", "com.craftsilicon.littlecabrider")
     private val CLOCK_PKGS = setOf("com.android.deskclock", "com.google.android.deskclock")
@@ -208,6 +216,6 @@ object IslandRepository {
     private fun publish() {
         items = (notes.values + mediaItems())
             .sortedWith(compareBy({ it.kind.ordinal }, { -it.postedAt }))
-        onChange?.invoke(items)
+        listeners.toList().forEach { it(items) }
     }
 }

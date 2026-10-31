@@ -111,7 +111,7 @@ class IslandView(context: Context) : FrameLayout(context) {
         compact.orientation = LinearLayout.HORIZONTAL
         compact.gravity = Gravity.CENTER_VERTICAL
         full.orientation = LinearLayout.VERTICAL
-        full.setPadding(d(20), d(16), d(20), d(16))
+        full.setPadding(d(24), d(16), d(24), d(8))
         full.visibility = GONE
         full.alpha = 0f
         pill.addView(compact, LayoutParams(LayoutParams.MATCH_PARENT, compactH, Gravity.TOP))
@@ -302,14 +302,16 @@ class IslandView(context: Context) : FrameLayout(context) {
     private fun renderMedia(item: IslandItem) {
         val c = item.controller ?: return
         val top = LinearLayout(context).apply { gravity = Gravity.CENTER_VERTICAL }
-        top.addView(iconView(item, d(58), d(14)).apply {
+        top.addView(iconView(item, d(56), d(11)).apply {
             setOnClickListener { openApp(item.pkg); collapse() }
-        }, LinearLayout.LayoutParams(d(58), d(58)))
+        }, LinearLayout.LayoutParams(d(56), d(56)))
         val col = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
-        col.addView(label(item.title, 16f, Color.WHITE, bold = true))
-        col.addView(label(item.subtitle, 13f, Color.argb(170, 255, 255, 255)))
+        col.addView(label(item.title, 17f, Color.WHITE, bold = true))
+        col.addView(label(item.subtitle, 14f, Color.argb(170, 255, 255, 255)), LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT
+        ).apply { topMargin = d(2) })
         top.addView(col, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
-            marginStart = d(12)
+            marginStart = d(16)
         })
         top.addView(EqView(context).also { it.active = item.playing }, LinearLayout.LayoutParams(d(24), d(18)))
         full.addView(top)
@@ -320,8 +322,8 @@ class IslandView(context: Context) : FrameLayout(context) {
                 topMargin = d(16)
             })
             val times = LinearLayout(context)
-            elapsedLabel = label("0:00", 10f, Color.argb(150, 255, 255, 255))
-            durationLabel = label(fmt(item.duration), 10f, Color.argb(150, 255, 255, 255)).apply {
+            elapsedLabel = label("0:00", 11f, Color.argb(160, 255, 255, 255))
+            durationLabel = label(fmt(item.duration), 11f, Color.argb(160, 255, 255, 255)).apply {
                 gravity = Gravity.END
             }
             times.addView(elapsedLabel, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
@@ -331,24 +333,37 @@ class IslandView(context: Context) : FrameLayout(context) {
             ).apply { topMargin = d(4) })
         }
 
+        // Transport controls sit on the 8dp rhythm: 56dp targets, 24dp glyphs, 16dp gaps.
         val controls = LinearLayout(context).apply { gravity = Gravity.CENTER }
-        val size = d(56)
-        controls.addView(Glyph(context, Glyph.PREV).apply {
-            setOnClickListener { c.transportControls.skipToPrevious(); armCollapse() }
-        }, LinearLayout.LayoutParams(size, size))
-        controls.addView(Glyph(context, if (item.playing) Glyph.PAUSE else Glyph.PLAY).apply {
-            setOnClickListener {
+        val target = d(56)
+        val gap = d(16)
+        controls.addView(
+            control("prev") { c.transportControls.skipToPrevious() },
+            LinearLayout.LayoutParams(target, target)
+        )
+        controls.addView(
+            control(if (item.playing) "pause" else "play") {
                 if (item.playing) c.transportControls.pause() else c.transportControls.play()
-                armCollapse()
-            }
-        }, LinearLayout.LayoutParams(size, size).apply { marginStart = d(20); marginEnd = d(20) })
-        controls.addView(Glyph(context, Glyph.NEXT).apply {
-            setOnClickListener { c.transportControls.skipToNext(); armCollapse() }
-        }, LinearLayout.LayoutParams(size, size))
+            },
+            LinearLayout.LayoutParams(target, target).apply { marginStart = gap; marginEnd = gap }
+        )
+        controls.addView(
+            control("next") { c.transportControls.skipToNext() },
+            LinearLayout.LayoutParams(target, target)
+        )
         full.addView(controls, LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
-        ).apply { topMargin = d(6) })
+        ).apply { topMargin = d(4) })
         updateProgress()
+    }
+
+    private fun control(glyph: String, onClick: () -> Unit) = ImageView(context).apply {
+        setImageBitmap(Glyphs.tinted(glyph, d(56), Color.WHITE, 0.46f))
+        isClickable = true
+        setOnClickListener {
+            onClick()
+            armCollapse()
+        }
     }
 
     private fun renderGeneric(item: IslandItem) {
@@ -496,59 +511,6 @@ class IslandView(context: Context) : FrameLayout(context) {
             val r = height / 2f
             canvas.drawRoundRect(0f, 0f, width.toFloat(), height.toFloat(), r, r, track)
             canvas.drawRoundRect(0f, 0f, width * fraction.coerceIn(0f, 1f), height.toFloat(), r, r, fill)
-        }
-    }
-
-    private class Glyph(context: Context, val kind: Int) : View(context) {
-        companion object {
-            const val PLAY = 0
-            const val PAUSE = 1
-            const val NEXT = 2
-            const val PREV = 3
-        }
-
-        // Filled with a round stroke: the active-state counterpart to the outlined app glyphs.
-        private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.WHITE
-            style = Paint.Style.FILL_AND_STROKE
-            strokeJoin = Paint.Join.ROUND
-            strokeCap = Paint.Cap.ROUND
-        }
-
-        private fun triangle(x1: Float, y1: Float, x2: Float, y2: Float, x3: Float, y3: Float) =
-            Path().apply {
-                moveTo(x1, y1)
-                lineTo(x2, y2)
-                lineTo(x3, y3)
-                close()
-            }
-
-        override fun onDraw(canvas: Canvas) {
-            val s = minOf(width, height) * 0.46f
-            paint.strokeWidth = s * 0.3f
-            val cx = width / 2f
-            val cy = height / 2f
-            when (kind) {
-                PLAY -> canvas.drawPath(
-                    triangle(cx - s * 0.4f, cy - s * 0.6f, cx - s * 0.4f, cy + s * 0.6f, cx + s * 0.65f, cy), paint
-                )
-                PAUSE -> {
-                    canvas.drawRoundRect(RectF(cx - s * 0.5f, cy - s * 0.6f, cx - s * 0.12f, cy + s * 0.6f), 4f, 4f, paint)
-                    canvas.drawRoundRect(RectF(cx + s * 0.12f, cy - s * 0.6f, cx + s * 0.5f, cy + s * 0.6f), 4f, 4f, paint)
-                }
-                NEXT -> {
-                    canvas.drawPath(
-                        triangle(cx - s * 0.6f, cy - s * 0.5f, cx - s * 0.6f, cy + s * 0.5f, cx + s * 0.2f, cy), paint
-                    )
-                    canvas.drawRect(cx + s * 0.3f, cy - s * 0.5f, cx + s * 0.55f, cy + s * 0.5f, paint)
-                }
-                PREV -> {
-                    canvas.drawPath(
-                        triangle(cx + s * 0.6f, cy - s * 0.5f, cx + s * 0.6f, cy + s * 0.5f, cx - s * 0.2f, cy), paint
-                    )
-                    canvas.drawRect(cx - s * 0.55f, cy - s * 0.5f, cx - s * 0.3f, cy + s * 0.5f, paint)
-                }
-            }
         }
     }
 

@@ -22,6 +22,20 @@ object Glyphs {
         val outline = Path()
         val dots = Path()
 
+        /** Filled shapes (with the same round stroke), for active-state glyphs like play and pause. */
+        val solid = Path()
+
+        fun solidPath(d: String) {
+            try {
+                solid.addPath(PathParser.createPathFromPathData(d))
+            } catch (e: RuntimeException) {
+                // A malformed path just leaves that part of the glyph out.
+            }
+        }
+
+        fun solidRect(x: Float, y: Float, w: Float, h: Float, r: Float) =
+            solid.addRoundRect(RectF(x, y, x + w, y + h), r, r, Path.Direction.CW)
+
         fun path(d: String) {
             try {
                 outline.addPath(PathParser.createPathFromPathData(d))
@@ -268,6 +282,25 @@ object Glyphs {
             line(3f, 16f, 21f, 16f)
             line(7f, 20f, 17f, 20f)
         },
+        // Solid shapes are wound clockwise: Skia leaves a hole in counter-clockwise fill-and-stroke paths.
+        "flashlight" to {
+            path("M18 6c0 2-2 2-2 4v10a2 2 0 0 1-2 2h-4a2 2 0 0 1-2-2V10c0-2-2-2-2-4V2h12z")
+            line(6f, 6f, 18f, 6f)
+            dot(12f, 13f, 1f)
+        },
+        "play" to { solidPath("M8 5.5l11 6.5-11 6.5z") },
+        "pause" to {
+            solidRect(7f, 5.5f, 3f, 13f, 1f)
+            solidRect(14f, 5.5f, 3f, 13f, 1f)
+        },
+        "next" to {
+            solidPath("M5 6l9 6-9 6z")
+            solidRect(17.5f, 6f, 2f, 12f, 1f)
+        },
+        "prev" to {
+            solidPath("M19 6v12l-9-6z")
+            solidRect(4.5f, 6f, 2f, 12f, 1f)
+        },
         "apps" to {
             rect(3f, 3f, 7f, 7f, 2f)
             rect(14f, 3f, 7f, 7f, 2f)
@@ -326,8 +359,8 @@ object Glyphs {
     }
 
     /** A glyph filling most of a [size] square in a single [color], for use beside text. */
-    fun tinted(name: String, size: Int, color: Int): Bitmap =
-        mask(name, size, 0.9f).also { Canvas(it).drawColor(color, PorterDuff.Mode.SRC_IN) }
+    fun tinted(name: String, size: Int, color: Int, boxRatio: Float = 0.9f): Bitmap =
+        mask(name, size, boxRatio).also { Canvas(it).drawColor(color, PorterDuff.Mode.SRC_IN) }
 
     /** Opaque-black glyph on a transparent [size] square, ready to be tinted. */
     fun mask(name: String, size: Int, boxRatio: Float = Design.GLYPH_BOX): Bitmap {
@@ -345,6 +378,13 @@ object Glyphs {
             color = Color.BLACK
         })
         canvas.drawPath(shape.dots, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.BLACK })
+        canvas.drawPath(shape.solid, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.FILL_AND_STROKE
+            strokeWidth = STROKE
+            strokeJoin = Paint.Join.ROUND
+            strokeCap = Paint.Cap.ROUND
+            color = Color.BLACK
+        })
         return out
     }
 }
