@@ -303,7 +303,7 @@ object Glyphs {
         "whatsapp" to {
             path(BUBBLE_PATH)
             // The phone glyph shrunk to sit in the middle of the bubble.
-            path(PHONE_PATH, scale = 0.4f, dx = 7.4f, dy = 6.8f)
+            path(PHONE_PATH, scale = 0.5f, dx = 6f, dy = 5.4f)
         },
         "wabusiness" to {
             path(BUBBLE_PATH)

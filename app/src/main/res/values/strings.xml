@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="navbar_service_description">Draws Vexel\'s navigation bar (recents, home and back) over the system buttons in every app. It only presses those three system buttons; it does not read your screen.</string>
+</resources>

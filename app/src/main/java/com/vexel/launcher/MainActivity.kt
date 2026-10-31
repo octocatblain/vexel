@@ -97,8 +97,27 @@ class MainActivity : Activity() {
         super.onPause()
     }
 
+    /**
+     * Xiaomi's "clear all" force-stops apps, which also switches off their accessibility services, so the
+     * navigation bar would fall back to the stock buttons. The launcher restarts as the home app, so it
+     * turns the bar back on here. This needs WRITE_SECURE_SETTINGS, granted once over adb; without it
+     * the bar can only be re-enabled by hand in Accessibility settings.
+     */
+    private fun ensureNavBarEnabled() {
+        if (NavBarService.running) return
+        if (checkSelfPermission(android.Manifest.permission.WRITE_SECURE_SETTINGS) != android.content.pm.PackageManager.PERMISSION_GRANTED) return
+        val service = android.content.ComponentName(this, NavBarService::class.java).flattenToString()
+        val others = (Settings.Secure.getString(contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES) ?: "")
+            .split(':').filter { it.isNotEmpty() && it != service }
+        // Off then on, so a service the system marked as crashed gets bound again.
+        Settings.Secure.putString(contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES, others.joinToString(":"))
+        Settings.Secure.putString(contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES, (others + service).joinToString(":"))
+        Settings.Secure.putInt(contentResolver, Settings.Secure.ACCESSIBILITY_ENABLED, 1)
+    }
+
     override fun onResume() {
         super.onResume()
+        ensureNavBarEnabled()
         backdrop.running = true
         loadApps()
         pushIsland()
@@ -174,7 +193,7 @@ class MainActivity : Activity() {
             format12Hour = "h:mm"
             format24Hour = "HH:mm"
             setTextColor(Color.WHITE)
-            textSize = 56f
+            textSize = 80f
             typeface = Fonts.medium(context)
             includeFontPadding = false
         })
