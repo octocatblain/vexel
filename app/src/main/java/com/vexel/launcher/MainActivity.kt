@@ -81,6 +81,8 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         window.setDecorFitsSystemWindows(false)
+        // An earlier version kept a copy of your alarm times; this one doesn't use them, so delete it.
+        prefs.edit().remove("clock_alarms").apply()
         buildUi()
         IslandRepository.listen(islandListener)
         try {
@@ -126,13 +128,13 @@ class MainActivity : Activity() {
 
     override fun onNewIntent(intent: Intent?) {
         super.onNewIntent(intent)
-        scrollToBottom(smooth = true)
+        scrollToTop()
     }
 
     @Deprecated("Deprecated in Java")
     override fun onBackPressed() {
         // A launcher has nowhere to go back to.
-        scrollToBottom(smooth = true)
+        scrollToTop()
     }
 
     override fun onDestroy() {
@@ -196,6 +198,7 @@ class MainActivity : Activity() {
             textSize = 80f
             typeface = Fonts.medium(context)
             includeFontPadding = false
+            setOnClickListener { openAppNamed("Clock") }
         })
         header.addView(TextClock(this).apply {
             format12Hour = "EEEE, d MMMM"
@@ -203,6 +206,7 @@ class MainActivity : Activity() {
             setTextColor(Color.LTGRAY)
             textSize = 16f
             typeface = Fonts.regular(context)
+            setOnClickListener { openAppNamed("Calendar") }
         })
         weatherChip = TextView(this).apply {
             setTextColor(Color.WHITE)
@@ -211,7 +215,10 @@ class MainActivity : Activity() {
             background = glass(dp(20).toFloat())
             setPadding(dp(14), dp(8), dp(14), dp(8))
             text = "Weather: tap to allow location"
-            setOnClickListener { requestWeatherPermissionOrRefresh() }
+            setOnClickListener {
+                // Without location there is no weather to open yet, so a tap asks for it first.
+                if (Weather.hasPermission(context)) openAppNamed("Weather") else requestWeatherPermissionOrRefresh()
+            }
         }
         header.addView(weatherChip, LinearLayout.LayoutParams(WRAP, WRAP).apply { topMargin = dp(14) })
 
@@ -230,6 +237,10 @@ class MainActivity : Activity() {
             isVerticalScrollBarEnabled = false
             overScrollMode = View.OVER_SCROLL_NEVER
             isFillViewport = true
+            // Icons slide out under invisible edges just below the header and just above the dock,
+            // fading softly instead of being cut off.
+            isVerticalFadingEdgeEnabled = true
+            setFadingEdgeLength(dp(28))
             addView(content, FrameLayout.LayoutParams(MATCH, WRAP))
         }
         column = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
@@ -308,16 +319,11 @@ class MainActivity : Activity() {
             rowApps.forEach { row.addView(appCell(it), LinearLayout.LayoutParams(0, WRAP, 1f)) }
             grid.addView(row, LinearLayout.LayoutParams(MATCH, WRAP).apply { bottomMargin = dp(14) })
         }
-        if (!placedAtBottom) {
-            placedAtBottom = true
-            scrollToBottom()
-        }
     }
 
-    private var placedAtBottom = false
-
-    private fun scrollToBottom(smooth: Boolean = false) {
-        scroll.post { if (smooth) scroll.smoothScrollTo(0, Int.MAX_VALUE / 2) else scroll.scrollTo(0, Int.MAX_VALUE / 2) }
+    /** Back to the first apps. With a short list nothing moves, because the list is anchored to the bottom. */
+    private fun scrollToTop() {
+        scroll.post { scroll.smoothScrollTo(0, 0) }
     }
 
     private fun appCell(app: AppEntry) = LinearLayout(this).apply {
@@ -355,6 +361,11 @@ class MainActivity : Activity() {
         favorites = resolveFavorites()
         refreshDock()
         refreshGrid()
+    }
+
+    /** Opens the installed app with this name (Clock, Calendar, Weather), if there is one. */
+    private fun openAppNamed(label: String) {
+        allApps.firstOrNull { it.label.equals(label, ignoreCase = true) }?.let { startActivity(it.intent) }
     }
 
     private fun resolveFavorites(): List<AppEntry> {
