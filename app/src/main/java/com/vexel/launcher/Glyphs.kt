@@ -283,6 +283,59 @@ object Glyphs {
             line(7f, 20f, 17f, 20f)
         },
         // Solid shapes are wound clockwise: Skia leaves a hole in counter-clockwise fill-and-stroke paths.
+        // Brand glyphs: the app's own logo shape, redrawn in the set's stroke.
+        "spotify" to {
+            circle(12f, 12f, 10f)
+            path("M6.8 9c3.6-1 7.8-.6 10.8 1.2")
+            path("M7.6 12.6c3-.8 6.2-.5 8.6 1")
+            path("M8.4 16c2.3-.6 4.5-.4 6.5.8")
+        },
+        "whatsapp" to {
+            path(
+                "M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7" +
+                    "a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8z"
+            )
+            path("M9.2 8.6c-.4 3 2.4 5.8 5.4 5.4l.5-1.5-2-.9-.9 1c-1-.5-1.8-1.3-2.3-2.3l1-.9z")
+        },
+        "wabusiness" to {
+            path(
+                "M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7" +
+                    "a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8z"
+            )
+            path("M10 8v7")
+            path("M10 8h2.4a1.75 1.75 0 0 1 0 3.5H10")
+            path("M10 11.5h2.9a1.75 1.75 0 0 1 0 3.5H10")
+        },
+        "tiktok" to {
+            path("M14 3v11.5a3.5 3.5 0 1 1-3.5-3.5")
+            path("M14 3c.3 2.4 2 4 4.5 4.2")
+        },
+        "linkedin" to {
+            rect(3f, 3f, 18f, 18f, 3f)
+            dot(8f, 8.2f, 1f)
+            line(8f, 11f, 8f, 17f)
+            path("M12 17v-6")
+            path("M12 13.2c0-1.4 1-2.2 2.3-2.2s2.7.8 2.7 2.7V17")
+        },
+        "teams" to {
+            rect(2f, 5f, 14f, 14f, 3f)
+            line(5.5f, 9f, 12.5f, 9f)
+            line(9f, 9f, 9f, 15.5f)
+            circle(19f, 8f, 2f)
+            path("M17.5 12.5h4v4a2 2 0 0 1-4 0z")
+        },
+        "bike" to {
+            circle(6f, 16f, 3.5f)
+            circle(18f, 16f, 3.5f)
+            path("M6 16l3.5-7h5.5l3 7")
+            path("M9.5 9L8 6.5H6")
+            line(15f, 9f, 13f, 16f)
+        },
+        "carrefour" to {
+            path("M17 7.5a7 7 0 1 0 0 9")
+            path("M12 9l3 3-3 3")
+        },
+        "loop" to { path("M8 4v11a3 3 0 0 0 3 3h6") },
         "flashlight" to {
             path("M18 6c0 2-2 2-2 4v10a2 2 0 0 1-2 2h-4a2 2 0 0 1-2-2V10c0-2-2-2-2-4V2h12z")
             line(6f, 6f, 18f, 6f)
@@ -316,13 +369,14 @@ object Glyphs {
         fun has(vararg keys: String) = keys.any { l.contains(it) || p.contains(it) }
         return when {
             has("remote") -> "remote"
-            has("whatsapp", "wa business") -> "chat"
+            has("wa business", "w4b") -> "wabusiness"
+            has("whatsapp") -> "whatsapp"
             has("message", "mms", "sms") -> "message"
             has("safaricom") -> "sim"
             has("phone", "dialer") -> "phone"
             has("contact") -> "user"
-            has("teams") -> "users"
-            has("linkedin") -> "briefcase"
+            has("teams") -> "teams"
+            has("linkedin") -> "linkedin"
             has("mail") -> "mail"
             has("chrome", "browser") -> "globe"
             has("instagram") -> "insta"
@@ -342,18 +396,20 @@ object Glyphs {
             has("theme") -> "droplet"
             has("authenticator") -> "lock"
             has("vault") -> "layers"
-            has("spotify") -> "headphones"
-            has("tiktok", "music") -> "music"
+            has("spotify") -> "spotify"
+            has("tiktok") -> "tiktok"
+            has("music") -> "music"
             has("youtube", "video") -> "video"
             has("play store", "vending") -> "bag"
             has("bolt") -> "bolt"
             has("little", "taxi", "uber") -> "car"
-            has("carrefour") -> "cart"
-            has("loop") -> "card"
+            has("carrefour") -> "carrefour"
+            has("loop") -> "loop"
             has("smartaccess") -> "wifi"
             has("feedback", "services") -> "help"
             has("claude") -> "spark"
-            has("game", "bike") -> "gamepad"
+            has("bike", "mountain") -> "bike"
+            has("game") -> "gamepad"
             else -> "apps"
         }
     }

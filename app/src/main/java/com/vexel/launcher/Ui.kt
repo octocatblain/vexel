@@ -23,7 +23,7 @@ object Design {
     const val STROKE = 2f
 
     /** App tile corner radius as a fraction of tile size. */
-    const val TILE_RADIUS = 0.2f
+    const val TILE_RADIUS = 0.3f
 
     /** Share of the tile the glyph's 24-unit box occupies (safe area). */
     const val GLYPH_BOX = 0.52f

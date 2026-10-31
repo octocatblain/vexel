@@ -262,7 +262,7 @@ class MainActivity : Activity() {
         dock = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
-            background = glassDock(dp(26).toFloat())
+            background = glassDock(dp(38).toFloat())
             setPadding(dp(8), dp(16), dp(8), dp(16))
         }
         home.addView(dock, FrameLayout.LayoutParams(MATCH, WRAP, Gravity.BOTTOM).apply {
@@ -492,22 +492,21 @@ class MainActivity : Activity() {
         val radius = s * Design.TILE_RADIUS
         val bounds = RectF(0f, 0f, s, s)
 
-        // Glass tile: smoky grey body, bright top sheen, soft light edge.
+        // Lavender glass tile: milky body, soft inner shade, bright top sheen.
         val tile = Path().apply { addRoundRect(bounds, radius, radius, Path.Direction.CW) }
         canvas.save()
         canvas.clipPath(tile)
         canvas.drawRect(bounds, Paint().apply {
             shader = LinearGradient(
                 0f, 0f, 0f, s,
-                intArrayOf(Color.argb(252, 255, 255, 255), Color.argb(222, 222, 228, 244)),
+                intArrayOf(Color.argb(252, 246, 240, 255), Color.argb(226, 208, 190, 246)),
                 null, Shader.TileMode.CLAMP
             )
         })
-        // Soft inner shade along the bottom edge gives the tile thickness.
         canvas.drawRect(RectF(0f, s * 0.6f, s, s), Paint().apply {
             shader = LinearGradient(
                 0f, s * 0.6f, 0f, s,
-                Color.argb(0, 150, 160, 190), Color.argb(70, 150, 160, 190), Shader.TileMode.CLAMP
+                Color.argb(0, 150, 110, 215), Color.argb(80, 150, 110, 215), Shader.TileMode.CLAMP
             )
         })
         canvas.drawRect(RectF(0f, 0f, s, s * 0.5f), Paint().apply {
@@ -529,19 +528,19 @@ class MainActivity : Activity() {
             }
         )
 
-        // Glyph mask (opaque where the symbol is), then filled with a white-to-silver gradient.
+        // Glyph mask (opaque where the symbol is), then filled with a deep-purple gradient.
         val mask = Glyphs.mask(Glyphs.forApp(app.label, app.packageName), size)
         Canvas(mask).drawRect(0f, 0f, s, s, Paint().apply {
             shader = LinearGradient(
                 0f, 0f, 0f, s,
-                Color.argb(245, 30, 34, 52), Color.argb(245, 88, 94, 118), Shader.TileMode.CLAMP
+                Color.argb(250, 52, 18, 112), Color.argb(250, 118, 76, 196), Shader.TileMode.CLAMP
             )
             xfermode = PorterDuffXfermode(PorterDuff.Mode.SRC_IN)
         })
         // Soft shadow under the symbol, then the symbol itself.
         canvas.drawBitmap(mask, 0f, dp(1).toFloat(), Paint().apply {
             maskFilter = BlurMaskFilter(dp(2).toFloat(), BlurMaskFilter.Blur.NORMAL)
-            colorFilter = PorterDuffColorFilter(Color.argb(90, 70, 80, 120), PorterDuff.Mode.SRC_IN)
+            colorFilter = PorterDuffColorFilter(Color.argb(90, 90, 50, 160), PorterDuff.Mode.SRC_IN)
         })
         canvas.drawBitmap(mask, 0f, 0f, null)
         BitmapDrawable(resources, out)

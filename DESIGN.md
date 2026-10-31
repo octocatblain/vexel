@@ -10,8 +10,9 @@ One rulebook for every glyph and surface. The values live in `Design` (`Ui.kt`);
 | Stroke | 2 units, one weight everywhere |
 | Caps and joins | Round |
 | Style | Outlined. Filled is reserved for active states (island play / pause / skip) |
-| Tile | Frosted white glass, corner radius 20% of the tile, glyph box 52% of the tile |
-| Ink | Navy-slate gradient (`#1E2234` to `#585E76`) with a soft 1dp shadow |
+| Tile | Frosted lavender glass (`#F6F0FF` to `#D0BEF6`), corner radius 30% of the tile, glyph box 52% of the tile |
+| Brand apps | Same outlined style, but the glyph is drawn from the app's own logo shape (Spotify's three arcs, WhatsApp's bubble and handset, TikTok's note, LinkedIn's "in") |
+| Ink | Deep-purple gradient (`#341270` to `#764CC4`) with a soft 1dp shadow |
 | Backdrop | Purple-black gradient (`Backdrop` in `Ui.kt`), two drifting violet glows |
 | Surfaces | Glass: milky white gradient, 1-2px light rim (`glass`, `glassDock`) |
 | Island | Pure black pill so it stands off the purple |
