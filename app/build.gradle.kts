@@ -1,5 +1,13 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
+}
+
+// Release signing key lives in signing/ (git-ignored). Without it, release builds are left unsigned.
+val keystoreProps = Properties().apply {
+    val f = rootProject.file("signing/keystore.properties")
+    if (f.exists()) f.inputStream().use { load(it) }
 }
 
 android {
@@ -10,13 +18,25 @@ android {
         applicationId = "com.vexel.launcher"
         minSdk = 31
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 2
+        versionName = "1.1"
+    }
+
+    signingConfigs {
+        if (keystoreProps.containsKey("storeFile")) {
+            create("release") {
+                storeFile = rootProject.file(keystoreProps.getProperty("storeFile"))
+                storePassword = keystoreProps.getProperty("storePassword")
+                keyAlias = keystoreProps.getProperty("keyAlias")
+                keyPassword = keystoreProps.getProperty("keyPassword")
+            }
+        }
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
+            signingConfigs.findByName("release")?.let { signingConfig = it }
         }
     }
     compileOptions {
