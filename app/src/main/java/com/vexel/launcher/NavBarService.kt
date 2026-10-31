@@ -118,7 +118,7 @@ class NavBarService : AccessibilityService() {
 
         // Drawn widths, stroke included.
         private val recentsW = 14.4f * d // three bars, 6dp apart, 2.4dp stroke
-        private val homeW = 21f * d // rounded square, 2dp stroke
+        private val homeW = 19f * d // square: 17dp side plus the 2dp stroke
         private val backW = 10.9f * d // chevron, 2.4dp stroke
 
         init {
@@ -140,7 +140,7 @@ class NavBarService : AccessibilityService() {
 
             paint.alpha = alphaFor(1)
             paint.strokeWidth = 2f * d
-            canvas.drawRoundRect(RectF(x + d, cy - 8.5f * d, x + homeW - d, cy + 8.5f * d), 4.5f * d, 4.5f * d, paint)
+            canvas.drawRoundRect(RectF(x + d, cy - 8.5f * d, x + homeW - d, cy + 8.5f * d), 4f * d, 4f * d, paint)
             x += homeW + gap
 
             paint.alpha = alphaFor(2)
