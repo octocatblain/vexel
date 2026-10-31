@@ -18,8 +18,8 @@ android {
         applicationId = "com.vexel.launcher"
         minSdk = 31
         targetSdk = 35
-        versionCode = 2
-        versionName = "1.1"
+        versionCode = 3
+        versionName = "1.2"
     }
 
     signingConfigs {
@@ -46,7 +46,6 @@ android {
 }
 
 dependencies {
-    implementation("androidx.viewpager2:viewpager2:1.1.0")
     implementation("androidx.core:core-ktx:1.13.1")
 }
 

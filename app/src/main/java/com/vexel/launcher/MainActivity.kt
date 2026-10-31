@@ -3,48 +3,38 @@ package com.vexel.launcher
 import android.app.Activity
 import android.app.AlertDialog
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.content.pm.ResolveInfo
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.BlurMaskFilter
 import android.graphics.LinearGradient
-import android.graphics.PorterDuffColorFilter
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.PorterDuff
+import android.graphics.PorterDuffColorFilter
 import android.graphics.PorterDuffXfermode
 import android.graphics.Shader
 import android.graphics.RectF
 import android.graphics.Typeface
-import android.graphics.drawable.AdaptiveIconDrawable
 import android.graphics.drawable.BitmapDrawable
-import android.graphics.drawable.ColorDrawable
-import android.graphics.drawable.Drawable
 import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import android.os.Bundle
-import android.provider.MediaStore
 import android.provider.Settings
-import android.text.Editable
 import android.text.TextUtils
-import android.text.TextWatcher
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowInsets
-import android.view.inputmethod.InputMethodManager
-import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.PopupMenu
+import android.widget.ScrollView
 import android.widget.TextClock
 import android.widget.TextView
-import androidx.recyclerview.widget.RecyclerView
-import androidx.viewpager2.widget.ViewPager2
 import kotlin.math.abs
 
 private data class AppEntry(
@@ -54,37 +44,37 @@ private data class AppEntry(
     val info: ResolveInfo
 )
 
+/** One page: clock, date and weather on top, every app in a four-column grid below, favourites docked at the bottom. */
 class MainActivity : Activity() {
 
     companion object {
         private const val COLS = 5
-        private const val ROWS = 9
-        private const val PER_PAGE = COLS * ROWS
         private const val MAX_FAVORITES = 5
         private const val MATCH = ViewGroup.LayoutParams.MATCH_PARENT
         private const val WRAP = ViewGroup.LayoutParams.WRAP_CONTENT
+
     }
 
     private val prefs by lazy { getSharedPreferences("vexel", MODE_PRIVATE) }
 
     private var allApps: List<AppEntry> = emptyList()
-    private var shown: List<AppEntry> = emptyList()
     private var favorites: List<AppEntry> = emptyList()
     private val iconCache = HashMap<String, BitmapDrawable>()
 
     private var topInset = 0
     private var bottomInset = 0
+    private var startedAtTop = true
 
     private lateinit var root: FrameLayout
-    private lateinit var pager: ViewPager2
-    private lateinit var pagerAdapter: PagerAdapter
-    private lateinit var dots: LinearLayout
-    private lateinit var island: IslandView
-
-    private lateinit var homeContent: FrameLayout
-    private lateinit var homeInfo: LinearLayout
+    private lateinit var scroll: ScrollView
+    private lateinit var content: LinearLayout
+    private lateinit var header: LinearLayout
+    private lateinit var grid: LinearLayout
     private lateinit var dock: LinearLayout
     private lateinit var weatherChip: TextView
+    private lateinit var island: IslandView
+    private lateinit var column: LinearLayout
+    private lateinit var backdrop: Backdrop
 
     // ---- lifecycle ------------------------------------------------------------------------
 
@@ -102,8 +92,14 @@ class MainActivity : Activity() {
 
     private val islandListener: (List<IslandItem>) -> Unit = { island.setItems(islandItems(it)) }
 
+    override fun onPause() {
+        backdrop.running = false
+        super.onPause()
+    }
+
     override fun onResume() {
         super.onResume()
+        backdrop.running = true
         loadApps()
         pushIsland()
         refreshWeather()
@@ -111,13 +107,13 @@ class MainActivity : Activity() {
 
     override fun onNewIntent(intent: Intent?) {
         super.onNewIntent(intent)
-        pager.setCurrentItem(0, true)
+        scrollToBottom(smooth = true)
     }
 
     @Deprecated("Deprecated in Java")
     override fun onBackPressed() {
         // A launcher has nowhere to go back to.
-        pager.setCurrentItem(0, true)
+        scrollToBottom(smooth = true)
     }
 
     override fun onDestroy() {
@@ -132,29 +128,24 @@ class MainActivity : Activity() {
 
     // ---- gestures -------------------------------------------------------------------------
 
-    /** Swipe up on home opens the apps, swipe down on home pulls the notification shade, swipe down on apps returns home. */
     private var downX = 0f
     private var downY = 0f
 
+    /** Swiping down from the header area (clock, date, weather) pulls the notification shade. */
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
         when (ev.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
                 downX = ev.x
                 downY = ev.y
+                startedAtTop = ev.y < header.bottom
             }
-            MotionEvent.ACTION_UP -> onVerticalSwipe(ev.x - downX, ev.y - downY)
+            MotionEvent.ACTION_UP -> {
+                val dx = ev.x - downX
+                val dy = ev.y - downY
+                if (startedAtTop && dy > dp(80) && dy > abs(dx) * 1.5f) expandNotifications()
+            }
         }
         return super.dispatchTouchEvent(ev)
-    }
-
-    private fun onVerticalSwipe(dx: Float, dy: Float) {
-        if (abs(dy) < dp(80) || abs(dy) < abs(dx) * 1.5f) return
-        val onHome = pager.currentItem == 0
-        when {
-            dy < 0 && onHome -> pager.setCurrentItem(1, true)
-            dy > 0 && onHome -> expandNotifications()
-            dy > 0 -> pager.setCurrentItem(0, true)
-        }
     }
 
     private fun expandNotifications() {
@@ -171,30 +162,72 @@ class MainActivity : Activity() {
 
     private fun buildUi() {
         root = FrameLayout(this)
-        val backdrop = Backdrop(this)
+        root.setBackgroundColor(Color.BLACK)
+        backdrop = Backdrop(this)
         root.addView(backdrop, FrameLayout.LayoutParams(MATCH, MATCH))
 
-        homeContent = buildHome()
-        pagerAdapter = PagerAdapter()
-        pager = ViewPager2(this).apply {
-            adapter = pagerAdapter
-            offscreenPageLimit = 1
-            registerOnPageChangeCallback(object : ViewPager2.OnPageChangeCallback() {
-                override fun onPageScrolled(position: Int, offset: Float, px: Int) {
-                    val p = (position + offset).coerceIn(0f, 1f)
-                    backdrop.progress = p
-                }
-
-                override fun onPageSelected(position: Int) {
-                    refreshDots()
-                    if (position == 0) hideKeyboard()
-                }
-            })
+        header = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(24), 0, dp(24), dp(16))
         }
-        root.addView(pager, FrameLayout.LayoutParams(MATCH, MATCH))
+        header.addView(TextClock(this).apply {
+            format12Hour = "h:mm"
+            format24Hour = "HH:mm"
+            setTextColor(Color.WHITE)
+            textSize = 56f
+            typeface = Fonts.thin(context)
+            includeFontPadding = false
+        })
+        header.addView(TextClock(this).apply {
+            format12Hour = "EEEE, d MMMM"
+            format24Hour = "EEEE, d MMMM"
+            setTextColor(Color.LTGRAY)
+            textSize = 16f
+            typeface = Fonts.regular(context)
+        })
+        weatherChip = TextView(this).apply {
+            setTextColor(Color.WHITE)
+            textSize = 15f
+            typeface = Fonts.bold(context)
+            background = glass(dp(20).toFloat())
+            setPadding(dp(14), dp(8), dp(14), dp(8))
+            text = "Weather: tap to allow location"
+            setOnClickListener { requestWeatherPermissionOrRefresh() }
+        }
+        header.addView(weatherChip, LinearLayout.LayoutParams(WRAP, WRAP).apply { topMargin = dp(14) })
 
-        dots = LinearLayout(this).apply { gravity = Gravity.CENTER }
-        root.addView(dots, FrameLayout.LayoutParams(WRAP, WRAP, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL))
+        grid = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(8), dp(8), dp(8), 0)
+        }
+        // The header stays put; the app list sits under it and hugs the bottom, just above the dock.
+        content = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.BOTTOM
+        }
+        content.addView(grid)
+
+        scroll = ScrollView(this).apply {
+            isVerticalScrollBarEnabled = false
+            overScrollMode = View.OVER_SCROLL_NEVER
+            isFillViewport = true
+            addView(content, FrameLayout.LayoutParams(MATCH, WRAP))
+        }
+        column = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        column.addView(header, LinearLayout.LayoutParams(MATCH, WRAP))
+        column.addView(scroll, LinearLayout.LayoutParams(MATCH, 0, 1f))
+        root.addView(column, FrameLayout.LayoutParams(MATCH, MATCH))
+
+        dock = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+            background = glassDock(dp(32).toFloat())
+            setPadding(dp(8), dp(14), dp(8), dp(14))
+        }
+        root.addView(dock, FrameLayout.LayoutParams(MATCH, WRAP, Gravity.BOTTOM).apply {
+            marginStart = dp(16)
+            marginEnd = dp(16)
+        })
 
         island = IslandView(this).apply {
             onSetupClick = {
@@ -217,59 +250,12 @@ class MainActivity : Activity() {
 
     private fun applyInsets() {
         (island.layoutParams as FrameLayout.LayoutParams).topMargin = topInset + dp(6)
-        (dots.layoutParams as FrameLayout.LayoutParams).bottomMargin = bottomInset + dp(14)
-        (homeInfo.layoutParams as FrameLayout.LayoutParams).topMargin = topInset + dp(72)
-        (dock.layoutParams as FrameLayout.LayoutParams).bottomMargin = bottomInset + dp(36)
+        (dock.layoutParams as FrameLayout.LayoutParams).bottomMargin = bottomInset + dp(16)
+        header.setPadding(dp(24), topInset + dp(56), dp(24), dp(16))
+        // The app list ends where the dock begins, so icons never scroll underneath it.
+        (column.layoutParams as FrameLayout.LayoutParams).bottomMargin = bottomInset + dp(16) + dp(92)
+        content.setPadding(0, 0, 0, dp(8))
         root.requestLayout()
-        pagerAdapter.notifyDataSetChanged()
-    }
-
-    private fun buildHome(): FrameLayout {
-        val home = FrameLayout(this)
-
-        homeInfo = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(28), 0, dp(28), 0)
-        }
-        homeInfo.addView(TextClock(this).apply {
-            format12Hour = "h:mm"
-            format24Hour = "HH:mm"
-            setTextColor(Color.WHITE)
-            textSize = 84f
-            typeface = Typeface.create("sans-serif-thin", Typeface.NORMAL)
-            includeFontPadding = false
-            setShadowLayer(12f, 0f, 2f, Color.argb(120, 0, 0, 0))
-        })
-        homeInfo.addView(TextClock(this).apply {
-            format12Hour = "EEEE, d MMMM"
-            format24Hour = "EEEE, d MMMM"
-            setTextColor(Color.WHITE)
-            textSize = 20f
-            setShadowLayer(8f, 0f, 1f, Color.argb(120, 0, 0, 0))
-        })
-        weatherChip = TextView(this).apply {
-            setTextColor(Color.WHITE)
-            textSize = 16f
-            typeface = Typeface.DEFAULT_BOLD
-            background = glass(dp(22).toFloat())
-            setPadding(dp(16), dp(8), dp(16), dp(8))
-            text = "Weather: tap to allow location"
-            setOnClickListener { requestWeatherPermissionOrRefresh() }
-        }
-        homeInfo.addView(weatherChip, LinearLayout.LayoutParams(WRAP, WRAP).apply { topMargin = dp(16) })
-        home.addView(homeInfo, FrameLayout.LayoutParams(MATCH, WRAP, Gravity.TOP))
-
-        dock = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER
-            background = glassDock(dp(38).toFloat())
-            setPadding(dp(8), dp(16), dp(8), dp(16))
-        }
-        home.addView(dock, FrameLayout.LayoutParams(MATCH, WRAP, Gravity.BOTTOM).apply {
-            marginStart = dp(16)
-            marginEnd = dp(16)
-        })
-        return home
     }
 
     private fun refreshDock() {
@@ -280,83 +266,54 @@ class MainActivity : Activity() {
                 setImageDrawable(monoIcon(app))
                 setOnClickListener { startActivity(app.intent) }
                 setOnLongClickListener { showMenu(this, app); true }
-            }, LinearLayout.LayoutParams(dp(60), dp(60)))
+            }, LinearLayout.LayoutParams(dp(56), dp(56)))
             dock.addView(cell, LinearLayout.LayoutParams(0, WRAP, 1f))
         }
     }
 
-    private fun refreshDots() {
-        dots.removeAllViews()
-        val total = pagerAdapter.itemCount
-        if (total <= 1) return
-        for (i in 0 until total) {
-            dots.addView(View(this).apply {
-                background = GradientDrawable().apply {
-                    shape = GradientDrawable.OVAL
-                    setColor(if (i == pager.currentItem) Color.WHITE else Color.argb(90, 255, 255, 255))
-                }
-            }, LinearLayout.LayoutParams(dp(7), dp(7)).apply { marginStart = dp(4); marginEnd = dp(4) })
-        }
-    }
+    private fun refreshGrid() {
+        grid.removeAllViews()
+        // Apps already on the dock aren't repeated in the list.
+        val docked = favorites.map { it.packageName }.toSet()
+        val apps = allApps.filter { it.packageName !in docked }
 
-    private fun hideKeyboard() {
-        getSystemService(InputMethodManager::class.java).hideSoftInputFromWindow(root.windowToken, 0)
-    }
+        // Rows fill from the end: every row is full except the top one, whose icons sit at the right.
+        val short = apps.size % COLS
+        val rows = ArrayList<List<AppEntry>>()
+        if (short > 0) rows += apps.subList(0, short)
+        apps.drop(short).chunked(COLS).forEach { rows += it }
 
-    // ---- pager ----------------------------------------------------------------------------
-
-    private fun pageCount() = (shown.size + PER_PAGE - 1) / PER_PAGE
-
-    private inner class PagerAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
-        override fun getItemCount() = 1 + pageCount()
-
-        override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder {
-            val frame = FrameLayout(parent.context)
-            frame.layoutParams = RecyclerView.LayoutParams(MATCH, MATCH)
-            return object : RecyclerView.ViewHolder(frame) {}
-        }
-
-        override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
-            val frame = holder.itemView as FrameLayout
-            frame.removeAllViews()
-            if (position == 0) {
-                (homeContent.parent as? ViewGroup)?.removeView(homeContent)
-                frame.addView(homeContent, FrameLayout.LayoutParams(MATCH, MATCH))
-            } else {
-                frame.addView(gridPage(position - 1), FrameLayout.LayoutParams(MATCH, MATCH))
-            }
-        }
-    }
-
-    private fun gridPage(page: Int): View {
-        val col = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(8), topInset + dp(56), dp(8), bottomInset + dp(34))
-        }
-        for (r in 0 until ROWS) {
+        rows.forEach { rowApps ->
             val row = LinearLayout(this)
-            for (c in 0 until COLS) {
-                val i = page * PER_PAGE + r * COLS + c
-                row.addView(if (i < shown.size) appCell(shown[i]) else View(this), LinearLayout.LayoutParams(0, MATCH, 1f))
-            }
-            col.addView(row, LinearLayout.LayoutParams(MATCH, 0, 1f))
+            repeat(COLS - rowApps.size) { row.addView(View(this), LinearLayout.LayoutParams(0, WRAP, 1f)) }
+            rowApps.forEach { row.addView(appCell(it), LinearLayout.LayoutParams(0, WRAP, 1f)) }
+            grid.addView(row, LinearLayout.LayoutParams(MATCH, WRAP).apply { bottomMargin = dp(14) })
         }
-        return col
+        if (!placedAtBottom) {
+            placedAtBottom = true
+            scrollToBottom()
+        }
+    }
+
+    private var placedAtBottom = false
+
+    private fun scrollToBottom(smooth: Boolean = false) {
+        scroll.post { if (smooth) scroll.smoothScrollTo(0, Int.MAX_VALUE / 2) else scroll.scrollTo(0, Int.MAX_VALUE / 2) }
     }
 
     private fun appCell(app: AppEntry) = LinearLayout(this).apply {
         orientation = LinearLayout.VERTICAL
         gravity = Gravity.CENTER_HORIZONTAL
-        setPadding(0, dp(2), 0, 0)
         addView(ImageView(context).apply { setImageDrawable(monoIcon(app)) }, LinearLayout.LayoutParams(dp(56), dp(56)))
         addView(TextView(context).apply {
             text = app.label
             setTextColor(Color.WHITE)
             textSize = 11f
+            typeface = Fonts.regular(context)
             maxLines = 1
             ellipsize = TextUtils.TruncateAt.END
             gravity = Gravity.CENTER
-            setShadowLayer(6f, 0f, 1f, Color.BLACK)
+            setShadowLayer(6f, 0f, 1f, Color.argb(190, 10, 0, 30))
         }, LinearLayout.LayoutParams(MATCH, WRAP).apply { topMargin = dp(6) })
         setOnClickListener { startActivity(app.intent) }
         setOnLongClickListener { showMenu(this, app); true }
@@ -378,9 +335,7 @@ class MainActivity : Activity() {
             .sortedBy { it.label.lowercase() }
         favorites = resolveFavorites()
         refreshDock()
-        shown = allApps
-        pagerAdapter.notifyDataSetChanged()
-        refreshDots()
+        refreshGrid()
     }
 
     private fun resolveFavorites(): List<AppEntry> {
@@ -398,6 +353,7 @@ class MainActivity : Activity() {
         prefs.edit().putString("favs", list.joinToString("|") { it.packageName }).apply()
         favorites = list
         refreshDock()
+        refreshGrid()
     }
 
     private fun toggleFavorite(app: AppEntry) {
@@ -483,7 +439,7 @@ class MainActivity : Activity() {
 
     // ---- black-and-white icons ------------------------------------------------------------
 
-    /** Draws the app icon as a frosted-glass grey tile with a light monochrome glyph. */
+    /** A frosted white-lavender glass tile with the app's outlined glyph in deep purple. */
     private fun monoIcon(app: AppEntry): BitmapDrawable = iconCache.getOrPut(app.packageName) {
         val size = dp(56)
         val s = size.toFloat()
@@ -491,28 +447,27 @@ class MainActivity : Activity() {
         val canvas = Canvas(out)
         val radius = s * Design.TILE_RADIUS
         val bounds = RectF(0f, 0f, s, s)
-
-        // Lavender glass tile: milky body, soft inner shade, bright top sheen.
         val tile = Path().apply { addRoundRect(bounds, radius, radius, Path.Direction.CW) }
+
+        // Glass: near-white body with a lavender cast, a violet glow at the base, a bright sheen on top.
         canvas.save()
         canvas.clipPath(tile)
         canvas.drawRect(bounds, Paint().apply {
             shader = LinearGradient(
                 0f, 0f, 0f, s,
-                intArrayOf(Color.argb(252, 246, 240, 255), Color.argb(226, 208, 190, 246)),
-                null, Shader.TileMode.CLAMP
+                Color.argb(238, 252, 248, 255), Color.argb(206, 214, 194, 250), Shader.TileMode.CLAMP
             )
         })
-        canvas.drawRect(RectF(0f, s * 0.6f, s, s), Paint().apply {
+        canvas.drawRect(RectF(0f, s * 0.55f, s, s), Paint().apply {
             shader = LinearGradient(
-                0f, s * 0.6f, 0f, s,
-                Color.argb(0, 150, 110, 215), Color.argb(80, 150, 110, 215), Shader.TileMode.CLAMP
+                0f, s * 0.55f, 0f, s,
+                Color.argb(0, 150, 100, 235), Color.argb(80, 150, 100, 235), Shader.TileMode.CLAMP
             )
         })
         canvas.drawRect(RectF(0f, 0f, s, s * 0.5f), Paint().apply {
             shader = LinearGradient(
                 0f, 0f, 0f, s * 0.5f,
-                Color.argb(130, 255, 255, 255), Color.argb(0, 255, 255, 255), Shader.TileMode.CLAMP
+                Color.argb(120, 255, 255, 255), Color.argb(0, 255, 255, 255), Shader.TileMode.CLAMP
             )
         })
         canvas.restore()
@@ -523,22 +478,22 @@ class MainActivity : Activity() {
                 strokeWidth = 2f
                 shader = LinearGradient(
                     0f, 0f, 0f, s,
-                    Color.argb(255, 255, 255, 255), Color.argb(110, 255, 255, 255), Shader.TileMode.CLAMP
+                    Color.argb(255, 255, 255, 255), Color.argb(110, 226, 206, 255), Shader.TileMode.CLAMP
                 )
             }
         )
 
-        // Glyph mask (opaque where the symbol is), then filled with a deep-purple gradient.
+        // Glyph: deep purple, slightly lighter toward the base, with a soft violet shadow.
         val mask = Glyphs.mask(Glyphs.forApp(app.label, app.packageName), size)
+        val shadow = Glyphs.mask(Glyphs.forApp(app.label, app.packageName), size)
         Canvas(mask).drawRect(0f, 0f, s, s, Paint().apply {
             shader = LinearGradient(
                 0f, 0f, 0f, s,
-                Color.argb(250, 52, 18, 112), Color.argb(250, 118, 76, 196), Shader.TileMode.CLAMP
+                Color.argb(255, 52, 18, 112), Color.argb(255, 118, 76, 196), Shader.TileMode.CLAMP
             )
             xfermode = PorterDuffXfermode(PorterDuff.Mode.SRC_IN)
         })
-        // Soft shadow under the symbol, then the symbol itself.
-        canvas.drawBitmap(mask, 0f, dp(1).toFloat(), Paint().apply {
+        canvas.drawBitmap(shadow, 0f, dp(1).toFloat(), Paint().apply {
             maskFilter = BlurMaskFilter(dp(2).toFloat(), BlurMaskFilter.Blur.NORMAL)
             colorFilter = PorterDuffColorFilter(Color.argb(90, 90, 50, 160), PorterDuff.Mode.SRC_IN)
         })

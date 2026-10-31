@@ -442,7 +442,7 @@ class IslandView(context: Context) : FrameLayout(context) {
             setTextColor(color)
             maxLines = lines
             ellipsize = TextUtils.TruncateAt.END
-            if (bold) typeface = Typeface.DEFAULT_BOLD
+            typeface = if (bold) Fonts.bold(context) else Fonts.regular(context)
         }
 
     private fun pillButton(text: String, onClick: () -> Unit) = TextView(context).apply {
@@ -450,7 +450,7 @@ class IslandView(context: Context) : FrameLayout(context) {
         textSize = 14f
         setTextColor(Color.WHITE)
         gravity = Gravity.CENTER
-        typeface = Typeface.DEFAULT_BOLD
+        typeface = Fonts.bold(context)
         maxLines = 1
         ellipsize = TextUtils.TruncateAt.END
         background = GradientDrawable().apply {

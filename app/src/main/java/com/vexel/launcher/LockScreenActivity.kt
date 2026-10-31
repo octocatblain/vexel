@@ -74,7 +74,7 @@ class LockScreenActivity : Activity() {
             format24Hour = "HH:mm"
             setTextColor(Color.WHITE)
             textSize = 104f
-            typeface = Typeface.create("sans-serif-thin", Typeface.NORMAL)
+            typeface = Fonts.thin(context)
             includeFontPadding = false
             setShadowLayer(12f, 0f, 2f, Color.argb(120, 0, 0, 0))
         })
@@ -83,7 +83,7 @@ class LockScreenActivity : Activity() {
             info.addView(TextView(this).apply {
                 setTextColor(Color.WHITE)
                 textSize = 16f
-                typeface = Typeface.DEFAULT_BOLD
+                typeface = Fonts.bold(context)
                 background = glass(dp(22).toFloat())
                 setPadding(dp(16), dp(8), dp(16), dp(8))
                 compoundDrawablePadding = dp(8)
