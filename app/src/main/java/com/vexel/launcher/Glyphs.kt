@@ -3,6 +3,7 @@ package com.vexel.launcher
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.Matrix
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.PorterDuff
@@ -36,9 +37,16 @@ object Glyphs {
         fun solidRect(x: Float, y: Float, w: Float, h: Float, r: Float) =
             solid.addRoundRect(RectF(x, y, x + w, y + h), r, r, Path.Direction.CW)
 
-        fun path(d: String) {
+        fun path(d: String, scale: Float = 1f, dx: Float = 0f, dy: Float = 0f) {
             try {
-                outline.addPath(PathParser.createPathFromPathData(d))
+                val p = PathParser.createPathFromPathData(d)
+                if (scale != 1f || dx != 0f || dy != 0f) {
+                    p.transform(Matrix().apply {
+                        setScale(scale, scale)
+                        postTranslate(dx, dy)
+                    })
+                }
+                outline.addPath(p)
             } catch (e: RuntimeException) {
                 // A malformed path just leaves that part of the glyph out.
             }
@@ -57,15 +65,17 @@ object Glyphs {
         fun dot(cx: Float, cy: Float, r: Float = 1.1f) = dots.addCircle(cx, cy, r, Path.Direction.CW)
     }
 
+    private const val PHONE_PATH =
+        "M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 " +
+            "19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 " +
+            "2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 " +
+            "12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"
+
+    /** The speech bubble both WhatsApp apps share: a round bubble with its tail at bottom left. */
+    private const val BUBBLE_PATH = "M7.9 20A9 9 0 1 0 4 16.1L2 22z"
+
     private val glyphs: Map<String, Shape.() -> Unit> = mapOf(
-        "phone" to {
-            path(
-                "M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 " +
-                    "19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 " +
-                    "2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 " +
-                    "12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"
-            )
-        },
+        "phone" to { path(PHONE_PATH) },
         "message" to { path("M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z") },
         "chat" to {
             path(
@@ -291,20 +301,20 @@ object Glyphs {
             path("M8.4 16c2.3-.6 4.5-.4 6.5.8")
         },
         "whatsapp" to {
-            path(
-                "M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7" +
-                    "a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8z"
-            )
-            path("M9.2 8.6c-.4 3 2.4 5.8 5.4 5.4l.5-1.5-2-.9-.9 1c-1-.5-1.8-1.3-2.3-2.3l1-.9z")
+            path(BUBBLE_PATH)
+            // The phone glyph shrunk to sit in the middle of the bubble.
+            path(PHONE_PATH, scale = 0.4f, dx = 7.4f, dy = 6.8f)
         },
         "wabusiness" to {
-            path(
-                "M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7" +
-                    "a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8z"
-            )
-            path("M10 8v7")
-            path("M10 8h2.4a1.75 1.75 0 0 1 0 3.5H10")
-            path("M10 11.5h2.9a1.75 1.75 0 0 1 0 3.5H10")
+            path(BUBBLE_PATH)
+            path("M10.2 8.2v7.2")
+            path("M10.2 8.2h2.5a1.8 1.8 0 0 1 0 3.6h-2.5")
+            path("M10.2 11.8h3a1.8 1.8 0 0 1 0 3.6h-3")
+        },
+        "healthshield" to {
+            path("M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z")
+            line(12f, 8.5f, 12f, 14.5f)
+            line(9f, 11.5f, 15f, 11.5f)
         },
         "tiktok" to {
             path("M14 3v11.5a3.5 3.5 0 1 1-3.5-3.5")
@@ -331,11 +341,6 @@ object Glyphs {
             path("M9.5 9L8 6.5H6")
             line(15f, 9f, 13f, 16f)
         },
-        "carrefour" to {
-            path("M17 7.5a7 7 0 1 0 0 9")
-            path("M12 9l3 3-3 3")
-        },
-        "loop" to { path("M8 4v11a3 3 0 0 0 3 3h6") },
         "flashlight" to {
             path("M18 6c0 2-2 2-2 4v10a2 2 0 0 1-2 2h-4a2 2 0 0 1-2-2V10c0-2-2-2-2-4V2h12z")
             line(6f, 6f, 18f, 6f)
@@ -403,9 +408,9 @@ object Glyphs {
             has("play store", "vending") -> "bag"
             has("bolt") -> "bolt"
             has("little", "taxi", "uber") -> "car"
-            has("carrefour") -> "carrefour"
-            has("loop") -> "loop"
-            has("smartaccess") -> "wifi"
+            has("carrefour") -> "cart"
+            has("loop") -> "card"
+            has("smartaccess") -> "healthshield"
             has("feedback", "services") -> "help"
             has("claude") -> "spark"
             has("bike", "mountain") -> "bike"

@@ -175,7 +175,7 @@ class MainActivity : Activity() {
             format24Hour = "HH:mm"
             setTextColor(Color.WHITE)
             textSize = 56f
-            typeface = Fonts.thin(context)
+            typeface = Fonts.medium(context)
             includeFontPadding = false
         })
         header.addView(TextClock(this).apply {

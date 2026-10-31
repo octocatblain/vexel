@@ -5,13 +5,13 @@ import android.graphics.Typeface
 
 /** Inter (SIL Open Font License, see licenses/Inter-OFL.txt), the open-source face closest to Apple's San Francisco. */
 object Fonts {
-    private var thin: Typeface? = null
+    private var medium: Typeface? = null
     private var regular: Typeface? = null
     private var bold: Typeface? = null
 
-    /** Weight 100: the big clocks. */
-    fun thin(context: Context): Typeface =
-        thin ?: context.resources.getFont(R.font.inter_thin).also { thin = it }
+    /** Weight 500: the big clocks. */
+    fun medium(context: Context): Typeface =
+        medium ?: context.resources.getFont(R.font.inter_medium).also { medium = it }
 
     /** Weight 400: dates, labels and body text. */
     fun regular(context: Context): Typeface =

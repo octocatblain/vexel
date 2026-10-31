@@ -74,7 +74,7 @@ class LockScreenActivity : Activity() {
             format24Hour = "HH:mm"
             setTextColor(Color.WHITE)
             textSize = 104f
-            typeface = Fonts.thin(context)
+            typeface = Fonts.medium(context)
             includeFontPadding = false
             setShadowLayer(12f, 0f, 2f, Color.argb(120, 0, 0, 0))
         })
