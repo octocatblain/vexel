@@ -22,8 +22,8 @@ A custom Android home screen: a black and royal-purple background in slow motion
 with a purple outlined icon set, an iPhone-style Dynamic Island, and a Samsung-style navigation bar.
 Built for a Xiaomi phone (HyperOS, Android 15); needs Android 12 or newer.
 
-> The download counter above is live from GitHub Releases. It reads 0 (or "no releases") until a release with
-> `vexel-launcher.apk` attached is published.
+> Version 1.2 is published as a [GitHub release](https://github.com/octocatblain/vexel/releases/tag/v1.2); the download
+> counter above counts downloads of the attached `vexel-launcher.apk`.
 
 ## Screenshots
 
